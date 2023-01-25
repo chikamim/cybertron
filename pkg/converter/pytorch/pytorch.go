@@ -54,6 +54,11 @@ func (p *ParamsProvider[T]) Load(filename string) error {
 				name = p.nameMapping(name)
 			}
 			p.paramsData[name] = data[T](tensor)
+		} else if _, ok := tensor.Source.(*pytorch.HalfStorage); ok {
+			if p.nameMapping != nil {
+				name = p.nameMapping(name)
+			}
+			p.paramsData[name] = data[T](tensor)
 		}
 	}
 	switch r := result.(type) {
@@ -110,7 +115,15 @@ func data[T float.DType](t *pytorch.Tensor) []T {
 	if len(t.Size) > 1 {
 		size *= t.Size[1]
 	}
-	orig := t.Source.(*pytorch.FloatStorage).Data[t.StorageOffset : t.StorageOffset+size]
+
+	orig := make([]float32, size)
+	switch t.Source.(type) {
+	case *pytorch.FloatStorage:
+		orig = t.Source.(*pytorch.FloatStorage).Data[t.StorageOffset : t.StorageOffset+size]
+	case *pytorch.HalfStorage:
+		orig = t.Source.(*pytorch.HalfStorage).Data[t.StorageOffset : t.StorageOffset+size]
+	}
+
 	data := make([]T, len(orig))
 
 	if len(t.Size) == 1 || t.Size[1] == 1 || t.Size[0] == 1 || t.Stride[1] == 1 {
